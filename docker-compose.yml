@@ -1,0 +1,55 @@
+version: "3.9"
+   
+services:
+  server:
+    build: ./quiz-backend
+    tty: true
+    restart: always
+    command: >
+      sh -c "cd quiz-backend &&
+             python manage.py makemigrations quiz &&
+             python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:${SERVER_PORT}"
+    volumes:
+      - .:/code
+    env_file:
+      - .env
+    ports:
+      - ${SERVER_PORT}:${SERVER_PORT}
+    depends_on:
+      - postgres
+      
+  postgres:
+    image: postgres:13.1
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-q", "-d", "postgres", "-U", "root" ]
+      timeout: 45s
+      interval: 10s
+      retries: 10
+    restart: always
+    env_file: 
+      - .env
+    volumes:
+      - ./:/docker-entrypoint-initdb.d/
+    ports:
+      - ${POSTGRES_PORT}:${POSTGRES_PORT}
+
+  redis:
+    image: "redislabs/rejson:latest"
+
+  web:
+    build:
+      context: ./quiz-frontend
+      dockerfile: dockerfile
+    restart: always
+    env_file: 
+      - ./quiz-frontend/.env
+    ports:
+      - ${REACT_PORT}:${REACT_PORT}
+    command: >
+      sh -c "cd quiz-frontend &&
+      	  npm install &&
+             npm start"
+    volumes:
+      - ./:/react-docker:delegated
+      - /node_modules
